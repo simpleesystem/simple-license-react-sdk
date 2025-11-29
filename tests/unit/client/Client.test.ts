@@ -4,45 +4,47 @@ import {
   ERROR_CODE_ACTIVATION_LIMIT_EXCEEDED,
   ERROR_CODE_LICENSE_EXPIRED,
   ERROR_CODE_LICENSE_NOT_FOUND,
-  HTTP_OK,
 } from '@/constants'
 import {
   ActivationLimitExceededException,
+  ApiException,
   AuthenticationException,
   LicenseExpiredException,
   LicenseNotFoundException,
 } from '@/exceptions/ApiException'
+import type { AxiosHttpClient } from '@/http/AxiosHttpClient'
 import type { HttpClientInterface } from '@/http/HttpClientInterface'
-import { createLicense } from '../../factories/license'
-import { createSuccessResponse, createErrorResponse, createHttpResponse } from '../../factories/response'
+import type { ApiResponse } from '@/types/api'
 import {
-  TEST_BASE_URL,
-  TEST_LICENSE_KEY,
-  TEST_DOMAIN,
+  TEST_ADMIN_ROLE,
   TEST_AUTH_TOKEN,
   TEST_AUTH_TOKEN_EXPIRES_IN,
-  TEST_PRODUCT_ID,
-  TEST_TENANT_ID,
-  TEST_USER_ID,
-  TEST_PRODUCT_SLUG,
-  TEST_CUSTOMER_EMAIL,
-  TEST_TIER_CODE_PROFESSIONAL,
-  TEST_USERNAME,
-  TEST_PASSWORD,
-  TEST_HTTP_STATUS_OK,
-  TEST_BOOLEAN_TRUE,
+  TEST_BASE_URL,
   TEST_BOOLEAN_FALSE,
-  TEST_NUMBER_ZERO,
+  TEST_BOOLEAN_TRUE,
+  TEST_CLIENT_VERSION,
+  TEST_CUSTOMER_EMAIL,
+  TEST_DOMAIN,
+  TEST_EMAIL,
+  TEST_HTTP_STATUS_OK,
+  TEST_LICENSE_KEY,
+  TEST_LICENSE_STATUS_ACTIVE,
+  TEST_NUMBER_HUNDRED,
   TEST_NUMBER_ONE,
   TEST_NUMBER_TEN,
-  TEST_CLIENT_VERSION,
-  TEST_EMAIL,
-  TEST_LICENSE_STATUS_ACTIVE,
-  TEST_ADMIN_ROLE,
-  TEST_TENANT_NAME,
+  TEST_NUMBER_ZERO,
+  TEST_PASSWORD,
+  TEST_PRODUCT_ID,
   TEST_PRODUCT_NAME,
+  TEST_PRODUCT_SLUG,
+  TEST_TENANT_ID,
+  TEST_TENANT_NAME,
+  TEST_TIER_CODE_PROFESSIONAL,
+  TEST_USER_ID,
+  TEST_USERNAME,
 } from '../../constants'
-import type { ApiResponse } from '@/types/api'
+import { createLicense } from '../../factories/license'
+import { createErrorResponse, createHttpResponse, createSuccessResponse } from '../../factories/response'
 
 describe('Client', () => {
   let mockHttpClient: HttpClientInterface
@@ -105,6 +107,50 @@ describe('Client', () => {
       await expect(client.login(TEST_USERNAME, TEST_PASSWORD)).rejects.toThrow(AuthenticationException)
     })
 
+    it('should handle invalid login response format', async () => {
+      const invalidResponse = createHttpResponse({ invalid: 'data' } as unknown as ApiResponse)
+
+      vi.mocked(mockHttpClient.post).mockResolvedValue(invalidResponse)
+
+      await expect(client.login(TEST_USERNAME, TEST_PASSWORD)).rejects.toThrow(AuthenticationException)
+    })
+
+    it('should handle login response without data', async () => {
+      const response = createHttpResponse({
+        success: false,
+        error: { code: 'AUTH_ERROR', message: 'Failed' },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.post).mockResolvedValue(response)
+
+      await expect(client.login(TEST_USERNAME, TEST_PASSWORD)).rejects.toThrow(AuthenticationException)
+    })
+
+    it('should handle login response with non-object data', async () => {
+      const response = createHttpResponse({
+        success: true,
+        data: 'invalid',
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.post).mockResolvedValue(response)
+
+      await expect(client.login(TEST_USERNAME, TEST_PASSWORD)).rejects.toThrow(AuthenticationException)
+    })
+
+    it('should handle login response without token', async () => {
+      const response = createHttpResponse({
+        success: true,
+        data: {
+          expires_in: TEST_AUTH_TOKEN_EXPIRES_IN,
+          user: {},
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.post).mockResolvedValue(response)
+
+      await expect(client.login(TEST_USERNAME, TEST_PASSWORD)).rejects.toThrow(AuthenticationException)
+    })
+
     it('should set token directly', () => {
       client.setToken(TEST_AUTH_TOKEN, Date.now() + TEST_AUTH_TOKEN_EXPIRES_IN * 1000)
       expect(client.getToken()).toBe(TEST_AUTH_TOKEN)
@@ -114,9 +160,46 @@ describe('Client', () => {
       expect(client.getToken()).toBeNull()
     })
 
+    it('should clear token when expired and call setAuthToken on AxiosHttpClient', () => {
+      // Use a real AxiosHttpClient to test the instanceof check (line 209)
+      const axiosClient = new Client(TEST_BASE_URL)
+      // Access private property for testing - using type assertion to avoid bracket notation
+      const httpClient = (axiosClient as unknown as { httpClient: AxiosHttpClient }).httpClient as AxiosHttpClient
+      const mockSetAuthToken = vi.spyOn(httpClient, 'setAuthToken')
+
+      // Set token that's already expired
+      axiosClient.setToken(TEST_AUTH_TOKEN, Date.now() - 1000)
+
+      // Call getToken which should trigger the expiration check and call setAuthToken(null)
+      const token = axiosClient.getToken()
+
+      expect(token).toBeNull()
+      // Verify setAuthToken was called with null when token expires (covers line 209)
+      expect(mockSetAuthToken).toHaveBeenCalledWith(null)
+
+      mockSetAuthToken.mockRestore()
+    })
+
     it('should clear token when expired', () => {
       client.setToken(TEST_AUTH_TOKEN, Date.now() - 1000)
       expect(client.getToken()).toBeNull()
+    })
+
+    it('should handle expired token with non-AxiosHttpClient', () => {
+      // Create client with mock HTTP client that's not AxiosHttpClient
+      const customHttpClient = {
+        get: vi.fn(),
+        post: vi.fn(),
+        put: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
+      } as unknown as HttpClientInterface
+
+      const customClient = new Client(TEST_BASE_URL, customHttpClient)
+      customClient.setToken(TEST_AUTH_TOKEN, Date.now() - 1000)
+
+      // Should still clear token even without AxiosHttpClient
+      expect(customClient.getToken()).toBeNull()
     })
   })
 
@@ -332,6 +415,80 @@ describe('Client', () => {
       })
 
       expect(result.data).toBeDefined()
+    })
+
+    it('should list licenses with customer_email filter', async () => {
+      const licenses = [createLicense()]
+      const listResponse = {
+        success: TEST_BOOLEAN_TRUE,
+        data: licenses,
+        pagination: {
+          page: TEST_NUMBER_ONE,
+          limit: TEST_NUMBER_TEN,
+          total: TEST_NUMBER_ONE,
+          totalPages: TEST_NUMBER_ONE,
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(listResponse))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.listLicenses({
+        customer_email: TEST_CUSTOMER_EMAIL,
+      })
+
+      expect(result.data).toBeDefined()
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
+        expect.stringContaining(`customer_email=${encodeURIComponent(TEST_CUSTOMER_EMAIL)}`)
+      )
+    })
+
+    it('should list licenses with limit filter', async () => {
+      const licenses = [createLicense()]
+      const listResponse = {
+        success: TEST_BOOLEAN_TRUE,
+        data: licenses,
+        pagination: {
+          page: TEST_NUMBER_ONE,
+          limit: TEST_NUMBER_TEN,
+          total: TEST_NUMBER_ONE,
+          totalPages: TEST_NUMBER_ONE,
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(listResponse))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.listLicenses({
+        limit: TEST_NUMBER_TEN,
+      })
+
+      expect(result.data).toBeDefined()
+      expect(mockHttpClient.get).toHaveBeenCalledWith(expect.stringContaining(`limit=${TEST_NUMBER_TEN}`))
+    })
+
+    it('should list licenses with offset filter', async () => {
+      const licenses = [createLicense()]
+      const listResponse = {
+        success: TEST_BOOLEAN_TRUE,
+        data: licenses,
+        pagination: {
+          page: TEST_NUMBER_ONE,
+          limit: TEST_NUMBER_TEN,
+          total: TEST_NUMBER_ONE,
+          totalPages: TEST_NUMBER_ONE,
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(listResponse))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.listLicenses({
+        offset: TEST_NUMBER_TEN,
+      })
+
+      expect(result.data).toBeDefined()
+      expect(mockHttpClient.get).toHaveBeenCalledWith(expect.stringContaining(`offset=${TEST_NUMBER_TEN}`))
     })
 
     it('should create license successfully', async () => {
@@ -1097,6 +1254,306 @@ describe('Client', () => {
       const result = await client.getUsageTrends()
 
       expect(result.trends).toBeDefined()
+    })
+  })
+
+  describe('error handling - parseResponse edge cases', () => {
+    it('should handle non-object response in handleApiResponse', async () => {
+      const invalidResponse = createHttpResponse(null as unknown as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(invalidResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle invalid object response format', async () => {
+      const invalidResponse = createHttpResponse({ invalid: 'format' } as unknown as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(invalidResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+  })
+
+  describe('error handling - parseErrorDetails edge cases', () => {
+    it('should handle error with field in details', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'ERROR',
+          message: 'Error message',
+          details: {
+            field: 'email',
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error with resourceType in details', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'ERROR',
+          message: 'Error message',
+          details: {
+            resourceType: 'License',
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error with validation errors including type and context', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          details: {
+            validationErrors: [
+              {
+                path: ['field'],
+                message: 'Invalid value',
+                type: 'string',
+                context: { min: TEST_NUMBER_TEN, max: TEST_NUMBER_HUNDRED },
+              },
+            ],
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error with validation errors without type or context', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          details: {
+            validationErrors: [
+              {
+                path: ['field'],
+                message: 'Invalid value',
+              },
+            ],
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error details that return undefined when empty', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'ERROR',
+          message: 'Error message',
+          details: {},
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error with validationErrors array that has valid errors (covers line 705)', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          details: {
+            validationErrors: [
+              {
+                path: ['email'],
+                message: 'Email is required',
+              },
+              {
+                path: ['password'],
+                message: 'Password must be at least 8 characters',
+              },
+            ],
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle validationErrors array with invalid errors that get filtered out (covers lines 686-691 false branches)', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          details: {
+            validationErrors: [
+              {
+                path: ['email'],
+                message: 'Email is required',
+              },
+              {
+                // Missing required 'message' field - should be filtered out (covers line 690 false branch)
+                path: ['password'],
+              },
+              {
+                // Missing 'path' field - should be filtered out (covers line 689 false branch)
+                message: 'Some message',
+              },
+              {
+                // message is not a string - should be filtered out (covers line 690 false branch)
+                path: ['field'],
+                message: TEST_NUMBER_ZERO,
+              },
+              null, // Should be filtered out (covers line 687 false branch - not an object)
+              'string-error', // Should be filtered out (covers line 687 false branch - not an object)
+            ],
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle validationErrors array that becomes empty after filtering (covers line 705 false branch)', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Validation failed',
+          details: {
+            validationErrors: [
+              {
+                // Missing required fields - all should be filtered out
+                path: ['password'],
+                // Missing 'message' field
+              },
+              null, // Should be filtered out
+              'string-error', // Should be filtered out
+            ],
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error with additional string/number/boolean properties (covers line 713)', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'ERROR',
+          message: 'Error message',
+          details: {
+            customStringProp: 'custom value',
+            customNumberProp: TEST_NUMBER_TEN,
+            customBooleanProp: TEST_BOOLEAN_TRUE,
+            customNullProp: null,
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow()
+    })
+
+    it('should handle error response with parsed.error present (covers lines 727-729)', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'CUSTOM_ERROR',
+          message: 'Custom error message',
+          details: {
+            customDetail: 'value',
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      try {
+        await client.getLicenseData(TEST_LICENSE_KEY)
+        expect.fail('Should have thrown')
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiException)
+        expect((error as ApiException).errorCode).toBe('CUSTOM_ERROR')
+        expect((error as ApiException).message).toBe('Custom error message')
+        expect((error as ApiException).errorDetails).toBeDefined()
+      }
+    })
+
+    it('should handle error response with parsed.error null/undefined (covers lines 727-729 branches)', async () => {
+      // Test when parsed.error is undefined (covers || 'UNKNOWN_ERROR' and || 'API request failed' branches)
+      const errorResponse = createHttpResponse({
+        success: false,
+        // No error field - parsed.error will be undefined
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      try {
+        await client.getLicenseData(TEST_LICENSE_KEY)
+        expect.fail('Should have thrown')
+      } catch (error) {
+        expect(error).toBeInstanceOf(ApiException)
+        expect((error as ApiException).errorCode).toBe('UNKNOWN_ERROR')
+        expect((error as ApiException).message).toBe('API request failed')
+      }
+    })
+  })
+
+  describe('error handling - handleError default case', () => {
+    it('should throw ApiException for unknown error codes', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'UNKNOWN_ERROR_CODE',
+          message: 'Some unknown error',
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow(ApiException)
+    })
+
+    it('should throw ApiException with error details for unknown error codes', async () => {
+      const errorResponse = createHttpResponse({
+        success: false,
+        error: {
+          code: 'CUSTOM_ERROR',
+          message: 'Custom error message',
+          details: {
+            customDetail: 'value',
+          },
+        },
+      } as ApiResponse)
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(errorResponse)
+
+      await expect(client.getLicenseData(TEST_LICENSE_KEY)).rejects.toThrow(ApiException)
     })
   })
 })

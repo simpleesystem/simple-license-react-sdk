@@ -147,23 +147,27 @@ export class AxiosHttpClient implements HttpClientInterface {
     data?: HttpData,
     config?: HttpRequestConfig
   ): Promise<HttpResponse<T>> {
-    const axiosConfig: AxiosRequestConfig | undefined = config
-      ? {
-          ...config,
-          headers: {
-            ...(this.axiosInstance.defaults.headers?.common || {}),
-            ...config.headers,
-          },
-        }
-      : undefined
-    const response = await this.axiosInstance.put<T>(url, data, axiosConfig)
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText,
-      headers: this.extractHeaders(
-        response.headers as Record<string, string | number | string[] | number[] | boolean | null | undefined>
-      ),
+    try {
+      const axiosConfig: AxiosRequestConfig | undefined = config
+        ? {
+            ...config,
+            headers: {
+              ...(this.axiosInstance.defaults.headers?.common || {}),
+              ...config.headers,
+            },
+          }
+        : undefined
+      const response = await this.axiosInstance.put<T>(url, data, axiosConfig)
+      return {
+        data: response.data,
+        status: response.status,
+        statusText: response.statusText,
+        headers: this.extractHeaders(
+          response.headers as Record<string, string | number | string[] | number[] | boolean | null | undefined>
+        ),
+      }
+    } catch (error) {
+      throw this.transformError(error as AxiosError)
     }
   }
 
@@ -172,44 +176,52 @@ export class AxiosHttpClient implements HttpClientInterface {
     data?: HttpData,
     config?: HttpRequestConfig
   ): Promise<HttpResponse<T>> {
-    const axiosConfig: AxiosRequestConfig | undefined = config
-      ? {
-          ...config,
-          headers: {
-            ...(this.axiosInstance.defaults.headers?.common || {}),
-            ...config.headers,
-          },
-        }
-      : undefined
-    const response = await this.axiosInstance.patch<T>(url, data, axiosConfig)
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText,
-      headers: this.extractHeaders(
-        response.headers as Record<string, string | number | string[] | number[] | boolean | null | undefined>
-      ),
+    try {
+      const axiosConfig: AxiosRequestConfig | undefined = config
+        ? {
+            ...config,
+            headers: {
+              ...(this.axiosInstance.defaults.headers?.common || {}),
+              ...config.headers,
+            },
+          }
+        : undefined
+      const response = await this.axiosInstance.patch<T>(url, data, axiosConfig)
+      return {
+        data: response.data,
+        status: response.status,
+        statusText: response.statusText,
+        headers: this.extractHeaders(
+          response.headers as Record<string, string | number | string[] | number[] | boolean | null | undefined>
+        ),
+      }
+    } catch (error) {
+      throw this.transformError(error as AxiosError)
     }
   }
 
   async delete<T = Record<string, never>>(url: string, config?: HttpRequestConfig): Promise<HttpResponse<T>> {
-    const axiosConfig: AxiosRequestConfig | undefined = config
-      ? {
-          ...config,
-          headers: {
-            ...(this.axiosInstance.defaults.headers?.common || {}),
-            ...config.headers,
-          },
-        }
-      : undefined
-    const response = await this.axiosInstance.delete<T>(url, axiosConfig)
-    return {
-      data: response.data,
-      status: response.status,
-      statusText: response.statusText,
-      headers: this.extractHeaders(
-        response.headers as Record<string, string | number | string[] | number[] | boolean | null | undefined>
-      ),
+    try {
+      const axiosConfig: AxiosRequestConfig | undefined = config
+        ? {
+            ...config,
+            headers: {
+              ...(this.axiosInstance.defaults.headers?.common || {}),
+              ...config.headers,
+            },
+          }
+        : undefined
+      const response = await this.axiosInstance.delete<T>(url, axiosConfig)
+      return {
+        data: response.data,
+        status: response.status,
+        statusText: response.statusText,
+        headers: this.extractHeaders(
+          response.headers as Record<string, string | number | string[] | number[] | boolean | null | undefined>
+        ),
+      }
+    } catch (error) {
+      throw this.transformError(error as AxiosError)
     }
   }
 

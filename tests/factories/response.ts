@@ -4,13 +4,7 @@
  */
 
 import type { ApiResponse } from '@/types/api'
-import { createLicense } from './license'
-import {
-  TEST_HTTP_STATUS_OK,
-  TEST_NUMBER_ZERO,
-  TEST_BOOLEAN_TRUE,
-  TEST_BOOLEAN_FALSE,
-} from '../constants'
+import { TEST_BOOLEAN_FALSE, TEST_BOOLEAN_TRUE, TEST_HTTP_STATUS_OK } from '../constants'
 
 export function createSuccessResponse<T>(data: T): ApiResponse<T> {
   return {
@@ -38,12 +32,15 @@ export function createHttpResponse<T>(data: T, status: number = TEST_HTTP_STATUS
   }
 }
 
-export function createPaginatedResponse<T>(items: T[], pagination: {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-}): ApiResponse<{ data: T[], pagination: typeof pagination }> {
+export function createPaginatedResponse<T>(
+  items: T[],
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+): ApiResponse<{ data: T[]; pagination: typeof pagination }> {
   return {
     success: TEST_BOOLEAN_TRUE,
     data: {
@@ -52,4 +49,3 @@ export function createPaginatedResponse<T>(items: T[], pagination: {
     },
   }
 }
-

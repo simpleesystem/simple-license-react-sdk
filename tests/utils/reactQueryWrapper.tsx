@@ -26,4 +26,3 @@ export function createQueryClientWrapper(queryClient?: QueryClient) {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>
   }
 }
-

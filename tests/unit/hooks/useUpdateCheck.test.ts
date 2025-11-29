@@ -5,12 +5,17 @@
 
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { Client } from '@/client'
 import { useUpdateCheck } from '@/hooks/useUpdateCheck'
+import {
+  TEST_BOOLEAN_FALSE,
+  TEST_CLIENT_VERSION,
+  TEST_DOMAIN,
+  TEST_LICENSE_KEY,
+  TEST_PRODUCT_SLUG,
+} from '../../constants'
+import { createHttpResponse, createSuccessResponse } from '../../factories/response'
 import { createQueryClientWrapper } from '../../utils/reactQueryWrapper'
 import { createTestClient } from '../../utils/testClient'
-import { TEST_LICENSE_KEY, TEST_DOMAIN, TEST_PRODUCT_SLUG, TEST_CLIENT_VERSION, TEST_BOOLEAN_FALSE } from '../../constants'
-import { createSuccessResponse, createHttpResponse } from '../../factories/response'
 
 describe('useUpdateCheck', () => {
   it('should check for updates successfully', async () => {
@@ -63,4 +68,3 @@ describe('useUpdateCheck', () => {
     expect(result.current.error).toBeDefined()
   })
 })
-

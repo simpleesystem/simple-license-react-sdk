@@ -5,12 +5,19 @@
 
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { Client } from '@/client'
 import { useLogin, useLogout } from '@/hooks/useAuth'
+import {
+  TEST_ADMIN_ROLE,
+  TEST_AUTH_TOKEN,
+  TEST_AUTH_TOKEN_EXPIRES_IN,
+  TEST_EMAIL,
+  TEST_PASSWORD,
+  TEST_USER_ID,
+  TEST_USERNAME,
+} from '../../constants'
+import { createHttpResponse, createSuccessResponse } from '../../factories/response'
 import { createQueryClientWrapper, createTestQueryClient } from '../../utils/reactQueryWrapper'
 import { createTestClient } from '../../utils/testClient'
-import { TEST_USERNAME, TEST_PASSWORD, TEST_AUTH_TOKEN, TEST_AUTH_TOKEN_EXPIRES_IN, TEST_EMAIL, TEST_USER_ID, TEST_ADMIN_ROLE } from '../../constants'
-import { createSuccessResponse, createHttpResponse } from '../../factories/response'
 
 describe('useAuth', () => {
   describe('useLogin', () => {
@@ -87,4 +94,3 @@ describe('useAuth', () => {
     })
   })
 })
-
