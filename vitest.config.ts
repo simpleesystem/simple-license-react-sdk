@@ -11,10 +11,11 @@ export default defineConfig({
     testTimeout: 15_000,
     hookTimeout: 15_000,
     environmentMatchGlobs: [
+      ['tests/unit/hooks/**', 'jsdom'],
       ['tests/unit/exceptions/**', 'node'],
       ['tests/unit/http/**', 'node'],
+      ['tests/unit/client/**', 'node'],
       ['tests/integration/**', 'node'],
-      ['**/*.test.{ts,tsx}', 'jsdom'],
     ],
     coverage: {
       enabled: true,
