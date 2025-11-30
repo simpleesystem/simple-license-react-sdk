@@ -151,11 +151,22 @@ export class Client {
   // Authentication methods
   async login(username: string, password: string): Promise<LoginResponse> {
     const request: LoginRequest = { username, password }
-    const response = await this.httpClient.post<ApiResponse<LoginResponseData>>(API_ENDPOINT_AUTH_LOGIN, request)
+    const response = await this.httpClient.post<ApiResponse<LoginResponseData> | LoginResponseData>(API_ENDPOINT_AUTH_LOGIN, request)
 
+    // Handle two possible response formats:
+    // 1. Standard ApiResponse format: { success: true, data: { token, ... } }
+    // 2. Direct login response format: { success: true, token, ... }
     const parsed = this.parseResponse(response.data)
+    let loginData: LoginResponseData
 
-    if (!parsed.success || !parsed.data) {
+    if (parsed.success && parsed.data) {
+      // Standard ApiResponse format - data is wrapped
+      loginData = parsed.data as unknown as LoginResponseData
+    } else if (parsed.success && typeof response.data === 'object' && response.data !== null && 'token' in response.data) {
+      // Direct login response format - data is at root level
+      loginData = response.data as unknown as LoginResponseData
+    } else {
+      // Error response
       const errorDetails: ErrorDetails = {
         code: parsed.error?.code || ERROR_CODE_INVALID_CREDENTIALS,
         status: response.status,
@@ -165,15 +176,12 @@ export class Client {
       throw new AuthenticationException(errorMessage, errorDetails)
     }
 
-    if (!parsed.data || typeof parsed.data !== 'object') {
+    if (!loginData || typeof loginData !== 'object') {
       throw new AuthenticationException('Invalid login response data')
     }
 
-    // Type guard to ensure data matches LoginResponseData structure
-    // Using type assertion here is acceptable since we've validated the response structure
-    const data = parsed.data as unknown as LoginResponseData
-    const token = data.token
-    const expiresIn = data.expires_in || 0
+    const token = loginData.token
+    const expiresIn = loginData.expires_in || 0
 
     if (!token || typeof token !== 'string') {
       throw new AuthenticationException('Invalid or missing token in login response')
@@ -186,9 +194,9 @@ export class Client {
 
     return {
       token,
-      token_type: data.token_type || 'Bearer',
+      token_type: loginData.token_type || 'Bearer',
       expires_in: expiresIn,
-      user: data.user || ({} as LoginResponse['user']),
+      user: loginData.user || ({} as LoginResponse['user']),
     }
   }
 
