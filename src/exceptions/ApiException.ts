@@ -12,6 +12,8 @@ import {
 } from '../constants'
 import type { ErrorDetails } from '../types/api'
 
+type StackTraceCallback = ((...args: never[]) => unknown) | (abstract new (...args: never[]) => unknown)
+
 export class ApiException extends Error {
   public readonly errorCode: string
   public readonly errorDetails: ErrorDetails | undefined
@@ -28,8 +30,13 @@ export class ApiException extends Error {
     this.errorDetails = errorDetails
 
     // Maintains proper stack trace for where our error was thrown (only available on V8)
-    if (Error.captureStackTrace) {
-      Error.captureStackTrace(this, ApiException)
+    const captureStackTrace = (
+      Error as ErrorConstructor & {
+        captureStackTrace?: (target: object, constructorOpt?: StackTraceCallback) => void
+      }
+    ).captureStackTrace
+    if (captureStackTrace) {
+      captureStackTrace(this, ApiException)
     }
   }
 }

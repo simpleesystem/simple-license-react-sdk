@@ -60,6 +60,7 @@ export const TEST_PRODUCT_ID = 'product-123'
 export const TEST_PRODUCT_SLUG = 'test-product'
 export const TEST_PRODUCT_NAME = 'Test Product'
 export const TEST_PRODUCT_DESCRIPTION = 'Test Product Description'
+export const TEST_ENTITLEMENT_KEY = 'ENTITLEMENT-KEY'
 
 // Test Tenant Values
 export const TEST_TENANT_ID = 'tenant-123'
@@ -109,6 +110,7 @@ export const TEST_NUMBER_HUNDRED = 100
 // Test String Values
 export const TEST_STRING_EMPTY = ''
 export const TEST_STRING_SPACE = ' '
+export const TEST_STRING_VALUE = 'Test Value'
 
 // Test Timeout Values (milliseconds)
 export const TEST_TIMEOUT_SHORT = 1000

@@ -3,6 +3,10 @@
  */
 
 import {
+  API_ENDPOINT_ADMIN_ANALYTICS_DISTRIBUTION,
+  API_ENDPOINT_ADMIN_ANALYTICS_LICENSE,
+  API_ENDPOINT_ADMIN_ANALYTICS_THRESHOLDS,
+  API_ENDPOINT_ADMIN_ANALYTICS_TOP_LICENSES,
   API_ENDPOINT_ADMIN_ANALYTICS_TRENDS,
   API_ENDPOINT_ADMIN_ANALYTICS_USAGE,
   API_ENDPOINT_ADMIN_ENTITLEMENTS_DELETE,
@@ -69,6 +73,8 @@ import type {
   ActionSuccessResponse,
   ActivateLicenseRequest,
   ActivateLicenseResponse,
+  ActivationDistributionResponse,
+  AlertThresholdsResponse,
   ApiResponse,
   ChangePasswordRequest,
   CheckUpdateRequest,
@@ -101,6 +107,7 @@ import type {
   GetUserResponse,
   LicenseDataResponse,
   LicenseFeaturesResponse,
+  LicenseUsageDetailsResponse,
   ListEntitlementsResponse,
   ListLicensesRequest,
   ListLicensesResponse,
@@ -113,6 +120,8 @@ import type {
   LoginResponseData,
   ReportUsageRequest,
   SystemStatsResponse,
+  TopLicensesResponse,
+  UpdateAlertThresholdsRequest,
   UpdateEntitlementRequest,
   UpdateEntitlementResponse,
   UpdateLicenseRequest,
@@ -151,7 +160,10 @@ export class Client {
   // Authentication methods
   async login(username: string, password: string): Promise<LoginResponse> {
     const request: LoginRequest = { username, password }
-    const response = await this.httpClient.post<ApiResponse<LoginResponseData> | LoginResponseData>(API_ENDPOINT_AUTH_LOGIN, request)
+    const response = await this.httpClient.post<ApiResponse<LoginResponseData> | LoginResponseData>(
+      API_ENDPOINT_AUTH_LOGIN,
+      request
+    )
 
     // Handle two possible response formats:
     // 1. Standard ApiResponse format: { success: true, data: { token, ... } }
@@ -162,7 +174,12 @@ export class Client {
     if (parsed.success && parsed.data) {
       // Standard ApiResponse format - data is wrapped
       loginData = parsed.data as unknown as LoginResponseData
-    } else if (parsed.success && typeof response.data === 'object' && response.data !== null && 'token' in response.data) {
+    } else if (
+      parsed.success &&
+      typeof response.data === 'object' &&
+      response.data !== null &&
+      'token' in response.data
+    ) {
       // Direct login response format - data is at root level
       loginData = response.data as unknown as LoginResponseData
     } else {
@@ -627,6 +644,26 @@ export class Client {
     return this.handleApiResponse(response.data, {} as SystemStatsResponse)
   }
 
+  async getLicenseUsageDetails(
+    licenseKey: string,
+    params?: { periodStart?: string; periodEnd?: string }
+  ): Promise<LicenseUsageDetailsResponse> {
+    const queryParams = new URLSearchParams()
+    if (params?.periodStart) {
+      queryParams.append('periodStart', params.periodStart)
+    }
+    if (params?.periodEnd) {
+      queryParams.append('periodEnd', params.periodEnd)
+    }
+
+    const baseUrl = `${API_ENDPOINT_ADMIN_ANALYTICS_LICENSE}/${encodeURIComponent(licenseKey)}`
+    const url = queryParams.size > 0 ? `${baseUrl}?${queryParams.toString()}` : baseUrl
+
+    const response = await this.httpClient.get<ApiResponse<LicenseUsageDetailsResponse>>(url)
+
+    return this.handleApiResponse(response.data, {} as LicenseUsageDetailsResponse)
+  }
+
   async getUsageSummaries(): Promise<UsageSummaryResponse> {
     const response = await this.httpClient.get<ApiResponse<UsageSummaryResponse>>(API_ENDPOINT_ADMIN_ANALYTICS_USAGE)
 
@@ -637,6 +674,39 @@ export class Client {
     const response = await this.httpClient.get<ApiResponse<UsageTrendsResponse>>(API_ENDPOINT_ADMIN_ANALYTICS_TRENDS)
 
     return this.handleApiResponse(response.data, {} as UsageTrendsResponse)
+  }
+
+  async getActivationDistribution(): Promise<ActivationDistributionResponse> {
+    const response = await this.httpClient.get<ApiResponse<ActivationDistributionResponse>>(
+      API_ENDPOINT_ADMIN_ANALYTICS_DISTRIBUTION
+    )
+
+    return this.handleApiResponse(response.data, {} as ActivationDistributionResponse)
+  }
+
+  async getAlertThresholds(): Promise<AlertThresholdsResponse> {
+    const response = await this.httpClient.get<ApiResponse<AlertThresholdsResponse>>(
+      API_ENDPOINT_ADMIN_ANALYTICS_THRESHOLDS
+    )
+
+    return this.handleApiResponse(response.data, {} as AlertThresholdsResponse)
+  }
+
+  async updateAlertThresholds(request: UpdateAlertThresholdsRequest): Promise<AlertThresholdsResponse> {
+    const response = await this.httpClient.put<ApiResponse<AlertThresholdsResponse>>(
+      API_ENDPOINT_ADMIN_ANALYTICS_THRESHOLDS,
+      request
+    )
+
+    return this.handleApiResponse(response.data, {} as AlertThresholdsResponse)
+  }
+
+  async getTopLicenses(): Promise<TopLicensesResponse> {
+    const response = await this.httpClient.get<ApiResponse<TopLicensesResponse>>(
+      API_ENDPOINT_ADMIN_ANALYTICS_TOP_LICENSES
+    )
+
+    return this.handleApiResponse(response.data, {} as TopLicensesResponse)
   }
 
   // Helper methods - type guards for response parsing

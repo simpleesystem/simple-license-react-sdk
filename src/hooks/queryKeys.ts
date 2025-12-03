@@ -64,5 +64,10 @@ export const QUERY_KEYS = {
     stats: () => ['admin', 'analytics', 'stats'] as const,
     usage: () => ['admin', 'analytics', 'usage'] as const,
     trends: () => ['admin', 'analytics', 'trends'] as const,
+    distribution: () => ['admin', 'analytics', 'distribution'] as const,
+    thresholds: () => ['admin', 'analytics', 'thresholds'] as const,
+    licenseDetails: (licenseKey: string, periodStart?: string | null, periodEnd?: string | null) =>
+      ['admin', 'analytics', 'license', licenseKey, periodStart ?? null, periodEnd ?? null] as const,
+    topLicenses: () => ['admin', 'analytics', 'top-licenses'] as const,
   },
 } as const

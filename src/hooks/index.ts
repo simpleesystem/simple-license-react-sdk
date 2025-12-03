@@ -5,9 +5,11 @@
 // Query keys
 export { QUERY_KEYS } from './queryKeys'
 export * from './useAdminAnalytics'
+export * from './useAdminEntitlements'
 // Admin API hooks
 export * from './useAdminLicenses'
 export * from './useAdminProducts'
+export * from './useAdminProductTiers'
 export * from './useAdminTenants'
 export * from './useAdminUsers'
 // Authentication hooks
