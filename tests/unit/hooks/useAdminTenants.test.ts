@@ -8,6 +8,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   useAdminTenants,
   useCreateTenant,
+  useCreateTenantBackup,
   useQuotaConfig,
   useQuotaUsage,
   useResumeTenant,
@@ -230,6 +231,34 @@ describe('useAdminTenants', () => {
       })
 
       expect(result.current.data?.success).toBe(TEST_BOOLEAN_TRUE)
+    })
+  })
+
+  describe('useCreateTenantBackup', () => {
+    it('should create tenant backup successfully', async () => {
+      const client = createTestClient()
+      const backup = {
+        backup: {
+          id: 'backup-1',
+          backupName: 'tenant-backup',
+          backupType: 'database',
+          createdAt: new Date().toISOString(),
+        },
+      }
+      const mockPost = vi.fn().mockResolvedValue(createHttpResponse(createSuccessResponse(backup)))
+      // @ts-expect-error - accessing private property for testing
+      client.httpClient.post = mockPost
+
+      const wrapper = createQueryClientWrapper()
+      const { result } = renderHook(() => useCreateTenantBackup(client), { wrapper })
+
+      result.current.mutate(TEST_TENANT_ID)
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true)
+      })
+
+      expect(result.current.data?.backup).toBeDefined()
     })
   })
 })

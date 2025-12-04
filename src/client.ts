@@ -9,9 +9,12 @@ import {
   API_ENDPOINT_ADMIN_ANALYTICS_TOP_LICENSES,
   API_ENDPOINT_ADMIN_ANALYTICS_TRENDS,
   API_ENDPOINT_ADMIN_ANALYTICS_USAGE,
+  API_ENDPOINT_ADMIN_AUDIT_LOGS,
+  API_ENDPOINT_ADMIN_AUDIT_VERIFY,
   API_ENDPOINT_ADMIN_ENTITLEMENTS_DELETE,
   API_ENDPOINT_ADMIN_ENTITLEMENTS_GET,
   API_ENDPOINT_ADMIN_ENTITLEMENTS_UPDATE,
+  API_ENDPOINT_ADMIN_HEALTH,
   API_ENDPOINT_ADMIN_LICENSES_ACTIVATIONS,
   API_ENDPOINT_ADMIN_LICENSES_CREATE,
   API_ENDPOINT_ADMIN_LICENSES_FREEZE,
@@ -21,6 +24,7 @@ import {
   API_ENDPOINT_ADMIN_LICENSES_REVOKE,
   API_ENDPOINT_ADMIN_LICENSES_SUSPEND,
   API_ENDPOINT_ADMIN_LICENSES_UPDATE,
+  API_ENDPOINT_ADMIN_METRICS,
   API_ENDPOINT_ADMIN_PRODUCT_TIERS_DELETE,
   API_ENDPOINT_ADMIN_PRODUCT_TIERS_GET,
   API_ENDPOINT_ADMIN_PRODUCT_TIERS_UPDATE,
@@ -32,6 +36,8 @@ import {
   API_ENDPOINT_ADMIN_PRODUCTS_SUSPEND,
   API_ENDPOINT_ADMIN_PRODUCTS_UPDATE,
   API_ENDPOINT_ADMIN_STATS,
+  API_ENDPOINT_ADMIN_STATUS,
+  API_ENDPOINT_ADMIN_TENANTS_BACKUP_PATH,
   API_ENDPOINT_ADMIN_TENANTS_CREATE,
   API_ENDPOINT_ADMIN_TENANTS_LIST,
   API_ENDPOINT_ADMIN_TENANTS_QUOTA_CONFIG_PATH,
@@ -76,6 +82,9 @@ import type {
   ActivationDistributionResponse,
   AlertThresholdsResponse,
   ApiResponse,
+  AuditLogFilters,
+  AuditVerificationParams,
+  AuditVerificationResponse,
   ChangePasswordRequest,
   CheckUpdateRequest,
   CheckUpdateResponse,
@@ -87,6 +96,7 @@ import type {
   CreateProductResponse,
   CreateProductTierRequest,
   CreateProductTierResponse,
+  CreateTenantBackupResponse,
   CreateTenantRequest,
   CreateTenantResponse,
   CreateUserRequest,
@@ -96,6 +106,7 @@ import type {
   ErrorDetails,
   FreezeLicenseRequest,
   FreezeLicenseResponse,
+  GetAuditLogsResponse,
   GetCurrentUserResponse,
   GetEntitlementResponse,
   GetLicenseActivationsResponse,
@@ -105,6 +116,7 @@ import type {
   GetQuotaConfigResponse,
   GetQuotaUsageResponse,
   GetUserResponse,
+  HealthMetricsResponse,
   LicenseDataResponse,
   LicenseFeaturesResponse,
   LicenseUsageDetailsResponse,
@@ -118,7 +130,9 @@ import type {
   LoginRequest,
   LoginResponse,
   LoginResponseData,
+  MetricsResponse,
   ReportUsageRequest,
+  ServerStatusResponse,
   SystemStatsResponse,
   TopLicensesResponse,
   UpdateAlertThresholdsRequest,
@@ -142,13 +156,17 @@ import type {
   ValidationError,
 } from './types/api'
 
+const CLIENT_DEFAULT_WS_PATH = '/ws/health' as const
+
 export class Client {
   private readonly httpClient: HttpClientInterface
+  private readonly baseUrl: string
   private authToken: string | null = null
   private tokenExpiresAt: number | null = null
 
   constructor(baseURL: string, httpClient?: HttpClientInterface) {
     const baseUrlClean = baseURL.endsWith('/') ? baseURL.slice(0, -1) : baseURL
+    this.baseUrl = baseUrlClean
     this.httpClient = httpClient || new AxiosHttpClient(baseUrlClean)
 
     if (this.httpClient instanceof AxiosHttpClient) {
@@ -235,6 +253,17 @@ export class Client {
       }
     }
     return this.authToken
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl
+  }
+
+  getWebSocketUrl(path: string = CLIENT_DEFAULT_WS_PATH): string {
+    const url = new URL(this.baseUrl)
+    const protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+    const normalizedPath = path.startsWith('/') ? path : `/${path}`
+    return `${protocol}//${url.host}${normalizedPath}`
   }
 
   // Public API methods
@@ -637,6 +666,32 @@ export class Client {
     return this.handleApiResponse<ActionSuccessResponse>(response.data, { success: true })
   }
 
+  async createTenantBackup(tenantId: string): Promise<CreateTenantBackupResponse> {
+    const url = `${API_ENDPOINT_ADMIN_TENANTS_LIST}/${encodeURIComponent(tenantId)}${API_ENDPOINT_ADMIN_TENANTS_BACKUP_PATH}`
+    const response = await this.httpClient.post<ApiResponse<CreateTenantBackupResponse>>(url)
+
+    return this.handleApiResponse(response.data, {} as CreateTenantBackupResponse)
+  }
+
+  // Admin API - System Monitoring
+  async getServerStatus(): Promise<ServerStatusResponse> {
+    const response = await this.httpClient.get<ApiResponse<ServerStatusResponse>>(API_ENDPOINT_ADMIN_STATUS)
+
+    return this.handleApiResponse(response.data, {} as ServerStatusResponse)
+  }
+
+  async getHealthMetrics(): Promise<HealthMetricsResponse> {
+    const response = await this.httpClient.get<ApiResponse<HealthMetricsResponse>>(API_ENDPOINT_ADMIN_HEALTH)
+
+    return this.handleApiResponse(response.data, {} as HealthMetricsResponse)
+  }
+
+  async getSystemMetrics(): Promise<MetricsResponse> {
+    const response = await this.httpClient.get<ApiResponse<MetricsResponse>>(API_ENDPOINT_ADMIN_METRICS)
+
+    return this.handleApiResponse(response.data, {} as MetricsResponse)
+  }
+
   // Admin API - Analytics
   async getSystemStats(): Promise<SystemStatsResponse> {
     const response = await this.httpClient.get<ApiResponse<SystemStatsResponse>>(API_ENDPOINT_ADMIN_STATS)
@@ -707,6 +762,56 @@ export class Client {
     )
 
     return this.handleApiResponse(response.data, {} as TopLicensesResponse)
+  }
+
+  async getAuditLogs(filters?: AuditLogFilters): Promise<GetAuditLogsResponse> {
+    const queryParams = new URLSearchParams()
+    if (filters?.adminId) {
+      queryParams.append('adminId', filters.adminId)
+    }
+    if (filters?.action) {
+      queryParams.append('action', filters.action)
+    }
+    if (filters?.resourceType) {
+      queryParams.append('resourceType', filters.resourceType)
+    }
+    if (filters?.resourceId) {
+      queryParams.append('resourceId', filters.resourceId)
+    }
+    if (typeof filters?.limit === 'number') {
+      queryParams.append('limit', String(filters.limit))
+    }
+    if (typeof filters?.offset === 'number') {
+      queryParams.append('offset', String(filters.offset))
+    }
+
+    const url =
+      queryParams.size > 0
+        ? `${API_ENDPOINT_ADMIN_AUDIT_LOGS}?${queryParams.toString()}`
+        : API_ENDPOINT_ADMIN_AUDIT_LOGS
+
+    const response = await this.httpClient.get<ApiResponse<GetAuditLogsResponse>>(url)
+
+    return this.handleApiResponse(response.data, {} as GetAuditLogsResponse)
+  }
+
+  async verifyAuditChain(params?: AuditVerificationParams): Promise<AuditVerificationResponse> {
+    const queryParams = new URLSearchParams()
+    if (params?.fromId) {
+      queryParams.append('fromId', params.fromId)
+    }
+    if (params?.toId) {
+      queryParams.append('toId', params.toId)
+    }
+
+    const url =
+      queryParams.size > 0
+        ? `${API_ENDPOINT_ADMIN_AUDIT_VERIFY}?${queryParams.toString()}`
+        : API_ENDPOINT_ADMIN_AUDIT_VERIFY
+
+    const response = await this.httpClient.get<ApiResponse<AuditVerificationResponse>>(url)
+
+    return this.handleApiResponse(response.data, {} as AuditVerificationResponse)
   }
 
   // Helper methods - type guards for response parsing

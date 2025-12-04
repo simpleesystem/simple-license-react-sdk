@@ -164,4 +164,45 @@ describe('QUERY_KEYS', () => {
       expect(key).toEqual(['admin', 'analytics', 'trends'])
     })
   })
+
+  describe('adminAudit', () => {
+    it('should return audit logs key without filters', () => {
+      const key = QUERY_KEYS.adminAudit.logs()
+      expect(key).toEqual(['admin', 'audit', 'logs', null])
+    })
+
+    it('should return audit logs key with filters', () => {
+      const filters = { adminId: TEST_USER_ID }
+      const key = QUERY_KEYS.adminAudit.logs(filters)
+      expect(key).toEqual(['admin', 'audit', 'logs', filters])
+    })
+
+    it('should return audit verification key with params', () => {
+      const params = { fromId: '1', toId: '5' }
+      const key = QUERY_KEYS.adminAudit.verify(params)
+      expect(key).toEqual(['admin', 'audit', 'verify', params])
+    })
+
+    it('should return audit verification key without params', () => {
+      const key = QUERY_KEYS.adminAudit.verify()
+      expect(key).toEqual(['admin', 'audit', 'verify', null])
+    })
+  })
+
+  describe('adminSystem', () => {
+    it('should return system status key', () => {
+      const key = QUERY_KEYS.adminSystem.status()
+      expect(key).toEqual(['admin', 'system', 'status'])
+    })
+
+    it('should return system health key', () => {
+      const key = QUERY_KEYS.adminSystem.health()
+      expect(key).toEqual(['admin', 'system', 'health'])
+    })
+
+    it('should return system metrics key', () => {
+      const key = QUERY_KEYS.adminSystem.metrics()
+      expect(key).toEqual(['admin', 'system', 'metrics'])
+    })
+  })
 })

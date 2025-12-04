@@ -1,3 +1,5 @@
+import type { AuditLogFilters, AuditVerificationParams } from '../types/api'
+
 /**
  * Query key factories for React Query
  * Centralized query key management for cache invalidation
@@ -69,5 +71,16 @@ export const QUERY_KEYS = {
     licenseDetails: (licenseKey: string, periodStart?: string | null, periodEnd?: string | null) =>
       ['admin', 'analytics', 'license', licenseKey, periodStart ?? null, periodEnd ?? null] as const,
     topLicenses: () => ['admin', 'analytics', 'top-licenses'] as const,
+  },
+  // Admin API - Audit Events
+  adminAudit: {
+    logs: (filters?: AuditLogFilters | null) => ['admin', 'audit', 'logs', filters ?? null] as const,
+    verify: (params?: AuditVerificationParams | null) => ['admin', 'audit', 'verify', params ?? null] as const,
+  },
+  // Admin API - System Monitoring
+  adminSystem: {
+    status: () => ['admin', 'system', 'status'] as const,
+    health: () => ['admin', 'system', 'health'] as const,
+    metrics: () => ['admin', 'system', 'metrics'] as const,
   },
 } as const

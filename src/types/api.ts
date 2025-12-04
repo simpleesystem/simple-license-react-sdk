@@ -541,6 +541,48 @@ export interface ActivationDistributionResponse {
   }>
 }
 
+export interface AuditLogEntry {
+  id: string
+  adminId: string | null
+  adminUsername: string | null
+  vendorId: string | null
+  action: string
+  resourceType: string
+  resourceId: string | null
+  details: Record<string, unknown> | null
+  ipAddress: string | null
+  userAgent: string | null
+  accessMethod: string
+  unixUser: string | null
+  createdAt: string
+}
+
+export interface GetAuditLogsResponse {
+  logs: AuditLogEntry[]
+  total: number
+}
+
+export interface AuditLogFilters {
+  adminId?: string
+  action?: string
+  resourceType?: string
+  resourceId?: string
+  limit?: number
+  offset?: number
+}
+
+export interface AuditVerificationResponse {
+  valid: boolean
+  totalEntries: number
+  verifiedEntries: number
+  brokenLinks: Array<{ id: string; expectedHash: string; actualHash: string | null }>
+}
+
+export interface AuditVerificationParams {
+  fromId?: string
+  toId?: string
+}
+
 // Top Licenses response
 export interface TopLicensesResponse {
   licenses: Array<{
@@ -612,18 +654,6 @@ export interface MetricsResponseBase {
 // Full metrics response with index signature for dynamic properties
 export type MetricsResponse = MetricsResponseBase & {
   [key: string]: MetricValue | MetricObject | undefined
-}
-
-// Audit Verification response
-export interface AuditVerificationResponse {
-  verified: boolean
-  totalEntries?: number
-  verifiedEntries?: number
-  errors?: Array<{
-    entryId: string
-    error: string
-  }>
-  chainIntegrity?: boolean
 }
 
 // Freeze License response

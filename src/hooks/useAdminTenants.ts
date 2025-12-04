@@ -4,6 +4,7 @@
 import { type UseQueryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { Client } from '../client'
 import type {
+  CreateTenantBackupResponse,
   CreateTenantRequest,
   CreateTenantResponse,
   GetQuotaConfigResponse,
@@ -79,6 +80,19 @@ export function useResumeTenant(client: Client) {
     onSuccess: (_data, id) => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTenants.all() })
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTenants.detail(id) })
+    },
+  })
+}
+
+export function useCreateTenantBackup(client: Client) {
+  const queryClient = useQueryClient()
+
+  return useMutation<CreateTenantBackupResponse, Error, string>({
+    mutationFn: async (tenantId) => {
+      return await client.createTenantBackup(tenantId)
+    },
+    onSuccess: (_data, tenantId) => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminTenants.detail(tenantId) })
     },
   })
 }

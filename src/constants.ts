@@ -97,12 +97,14 @@ export const API_ENDPOINT_ADMIN_TENANTS_RESUME = '/api/v1/admin/tenants'
 export const API_ENDPOINT_ADMIN_TENANTS_QUOTA_USAGE_PATH = '/quota/usage'
 export const API_ENDPOINT_ADMIN_TENANTS_QUOTA_CONFIG_PATH = '/quota/config'
 export const API_ENDPOINT_ADMIN_TENANTS_QUOTA_LIMITS_PATH = '/quota/limits'
+export const API_ENDPOINT_ADMIN_TENANTS_BACKUP_PATH = '/backup'
 
 // Admin System Endpoints
 export const API_ENDPOINT_ADMIN_STATS = '/api/v1/admin/stats'
 export const API_ENDPOINT_ADMIN_STATUS = '/api/v1/admin/status'
 export const API_ENDPOINT_ADMIN_HEALTH = '/api/v1/admin/health'
 export const API_ENDPOINT_ADMIN_METRICS = '/api/v1/admin/metrics'
+export const API_ENDPOINT_ADMIN_AUDIT_LOGS = '/api/v1/admin/audit/logs'
 export const API_ENDPOINT_ADMIN_AUDIT_VERIFY = '/api/v1/admin/audit/verify'
 
 // License Status Values

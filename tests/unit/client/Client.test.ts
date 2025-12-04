@@ -37,11 +37,17 @@ import {
   TEST_PRODUCT_ID,
   TEST_PRODUCT_NAME,
   TEST_PRODUCT_SLUG,
+  TEST_STATUS_HEALTHY,
+  TEST_STATUS_UNHEALTHY,
   TEST_TENANT_ID,
   TEST_TENANT_NAME,
   TEST_TIER_CODE_PROFESSIONAL,
   TEST_USER_ID,
   TEST_USERNAME,
+  TEST_WS_PATH_CUSTOM,
+  TEST_WS_PATH_HEALTH,
+  TEST_WS_PROTOCOL_SECURE,
+  TEST_BASE_URL_WITH_SLASH,
 } from '../../constants'
 import { createLicense } from '../../factories/license'
 import { createErrorResponse, createHttpResponse, createSuccessResponse } from '../../factories/response'
@@ -70,6 +76,25 @@ describe('Client', () => {
 
     it('should create client with custom HTTP client', () => {
       expect(client).toBeInstanceOf(Client)
+    })
+  })
+
+  describe('base URL helpers', () => {
+    it('returns normalized base URL without trailing slash', () => {
+      const urlClient = new Client(TEST_BASE_URL_WITH_SLASH, mockHttpClient)
+      expect(urlClient.getBaseUrl()).toBe(TEST_BASE_URL)
+    })
+
+    it('builds secure WebSocket URL with default path', () => {
+      const wsUrl = client.getWebSocketUrl()
+      const expected = `${TEST_WS_PROTOCOL_SECURE}${new URL(TEST_BASE_URL).host}${TEST_WS_PATH_HEALTH}`
+      expect(wsUrl).toBe(expected)
+    })
+
+    it('builds WebSocket URL with custom path', () => {
+      const wsUrl = client.getWebSocketUrl(TEST_WS_PATH_CUSTOM)
+      const expected = `${TEST_WS_PROTOCOL_SECURE}${new URL(TEST_BASE_URL).host}${TEST_WS_PATH_CUSTOM}`
+      expect(wsUrl).toBe(expected)
     })
   })
 
@@ -1180,6 +1205,110 @@ describe('Client', () => {
 
       expect(result.success).toBe(TEST_BOOLEAN_TRUE)
     })
+
+    it('should create tenant backup successfully', async () => {
+      const backup = {
+        backup: {
+          id: 'backup-1',
+          backupName: 'tenant-backup',
+          backupType: 'database',
+          createdAt: new Date().toISOString(),
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(backup))
+
+      vi.mocked(mockHttpClient.post).mockResolvedValue(response)
+
+      const result = await client.createTenantBackup(TEST_TENANT_ID)
+
+      expect(result.backup).toBeDefined()
+    })
+  })
+
+  describe('admin API - system monitoring', () => {
+    it('should get server status successfully', async () => {
+      const status = {
+        status: TEST_STATUS_HEALTHY,
+        timestamp: new Date().toISOString(),
+        checks: {
+          database: TEST_STATUS_HEALTHY,
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(status))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.getServerStatus()
+
+      expect(result.status).toBe(TEST_STATUS_HEALTHY)
+    })
+
+    it('should get health metrics successfully', async () => {
+      const metrics = {
+        metrics: {
+          uptime: TEST_NUMBER_TEN,
+          memory: {
+            rss: TEST_NUMBER_TEN,
+            heapTotal: TEST_NUMBER_TEN,
+            heapUsed: TEST_NUMBER_ONE,
+            external: TEST_NUMBER_ZERO,
+          },
+          cpu: {
+            user: TEST_NUMBER_ONE,
+            system: TEST_NUMBER_ONE,
+          },
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(metrics))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.getHealthMetrics()
+
+      expect(result.metrics.uptime).toBe(TEST_NUMBER_TEN)
+    })
+
+    it('should get system metrics successfully', async () => {
+      const metrics = {
+        timestamp: new Date().toISOString(),
+        application: {
+          version: TEST_PRODUCT_NAME,
+          environment: TEST_PRODUCT_SLUG,
+        },
+        system: {
+          uptime: TEST_NUMBER_TEN,
+          memory: {
+            rss: TEST_NUMBER_TEN,
+            heapTotal: TEST_NUMBER_TEN,
+            heapUsed: TEST_NUMBER_ONE,
+            external: TEST_NUMBER_ZERO,
+          },
+          cpu: {
+            user: TEST_NUMBER_ONE,
+            system: TEST_NUMBER_ONE,
+          },
+        },
+        database: {
+          status: TEST_STATUS_HEALTHY,
+        },
+        cache: {
+          status: TEST_STATUS_UNHEALTHY,
+        },
+        security: {
+          status: TEST_STATUS_HEALTHY,
+        },
+        tenants: {
+          status: TEST_STATUS_HEALTHY,
+        },
+      }
+      const response = createHttpResponse(createSuccessResponse(metrics))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.getSystemMetrics()
+
+      expect(result.application.version).toBe(TEST_PRODUCT_NAME)
+    })
   })
 
   describe('admin API - analytics', () => {
@@ -1254,6 +1383,82 @@ describe('Client', () => {
       const result = await client.getUsageTrends()
 
       expect(result.trends).toBeDefined()
+    })
+
+    it('should get audit logs successfully', async () => {
+      const logs = [
+        {
+          id: '1',
+          adminId: TEST_USER_ID,
+          adminUsername: TEST_USERNAME,
+          vendorId: TEST_TENANT_ID,
+          action: 'UPDATE',
+          resourceType: 'LICENSE',
+          resourceId: TEST_LICENSE_KEY,
+          details: { field: 'status' },
+          ipAddress: TEST_DOMAIN,
+          userAgent: 'vitest',
+          accessMethod: 'UI_API',
+          unixUser: null,
+          createdAt: new Date().toISOString(),
+        },
+      ]
+      const response = createHttpResponse(createSuccessResponse({ logs, total: logs.length }))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.getAuditLogs({
+        adminId: TEST_USER_ID,
+        action: 'UPDATE',
+        resourceType: 'LICENSE',
+        resourceId: TEST_LICENSE_KEY,
+        limit: TEST_NUMBER_TEN,
+        offset: TEST_NUMBER_ZERO,
+      })
+
+      expect(result.logs).toHaveLength(logs.length)
+    })
+
+    it('should verify audit chain successfully', async () => {
+      const verification = {
+        valid: TEST_BOOLEAN_TRUE,
+        totalEntries: TEST_NUMBER_TEN,
+        verifiedEntries: TEST_NUMBER_TEN,
+        brokenLinks: [],
+      }
+      const response = createHttpResponse(createSuccessResponse(verification))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.verifyAuditChain({ fromId: '1', toId: '100' })
+
+      expect(result.valid).toBe(TEST_BOOLEAN_TRUE)
+    })
+
+    it('should get audit logs without filters', async () => {
+      const response = createHttpResponse(createSuccessResponse({ logs: [], total: TEST_NUMBER_ZERO }))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.getAuditLogs()
+
+      expect(result.total).toBe(TEST_NUMBER_ZERO)
+    })
+
+    it('should verify audit chain without params', async () => {
+      const verification = {
+        valid: TEST_BOOLEAN_TRUE,
+        totalEntries: TEST_NUMBER_ZERO,
+        verifiedEntries: TEST_NUMBER_ZERO,
+        brokenLinks: [],
+      }
+      const response = createHttpResponse(createSuccessResponse(verification))
+
+      vi.mocked(mockHttpClient.get).mockResolvedValue(response)
+
+      const result = await client.verifyAuditChain()
+
+      expect(result.verifiedEntries).toBe(TEST_NUMBER_ZERO)
     })
   })
 

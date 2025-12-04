@@ -7,7 +7,15 @@ export type LicenseStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'SUSPENDED' | 'IN
 export type ActivationStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED'
 export type TenantStatus = 'ACTIVE' | 'SUSPENDED'
 export type LicenseTier = 'FREE' | 'STARTER' | 'PROFESSIONAL' | 'BUSINESS' | 'AGENCY' | 'ENTERPRISE'
-export type AdminRole = 'SUPERUSER' | 'ADMIN' | 'VENDOR_MANAGER' | 'VENDOR_ADMIN' | 'VIEWER'
+export type AdminRole =
+  | 'SUPERUSER'
+  | 'ADMIN'
+  | 'VENDOR_MANAGER'
+  | 'VENDOR_ADMIN'
+  | 'VIEWER'
+  | 'API_READ_ONLY'
+  | 'API_VENDOR_WRITE'
+  | 'API_CONSUMER_ACTIVATE'
 
 // License
 export interface License {
