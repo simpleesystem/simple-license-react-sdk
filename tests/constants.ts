@@ -120,6 +120,8 @@ export const TEST_WS_PROTOCOL_SECURE = 'wss://'
 export const TEST_WS_PROTOCOL_INSECURE = 'ws://'
 export const TEST_WS_PATH_HEALTH = '/ws/health'
 export const TEST_WS_PATH_CUSTOM = '/ws/custom'
+export const TEST_WS_BASE_URL = 'http://localhost:6050'
+export const TEST_WS_SERVER_URL = `${TEST_WS_PROTOCOL_INSECURE}localhost:6050${TEST_WS_PATH_HEALTH}`
 
 // Test Timeout Values (milliseconds)
 export const TEST_TIMEOUT_SHORT = 1000

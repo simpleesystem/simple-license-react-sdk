@@ -66,6 +66,7 @@
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^4.0.14",
+    "mock-socket": "^9.1.7",
     "jsdom": "^27.2.0",
     "msw": "^2.12.3",
     "react": "^19.0.0",

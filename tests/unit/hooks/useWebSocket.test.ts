@@ -3,7 +3,8 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { Server, WebSocket as MockSocket } from 'mock-socket'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useWebSocket } from '@/hooks/useWebSocket'
 import {
@@ -12,27 +13,40 @@ import {
   WS_STATE_CONNECTED,
 } from '@/types/websocket'
 import {
-  TEST_BASE_URL,
   TEST_DATE_CREATED,
   TEST_NUMBER_HUNDRED,
   TEST_NUMBER_ONE,
   TEST_NUMBER_TEN,
   TEST_NUMBER_ZERO,
+  TEST_WS_BASE_URL,
+  TEST_WS_SERVER_URL,
 } from '../../constants'
-import { MockWebSocket } from '../../utils/mockWebSocket'
 import { createTestClient } from '../../utils/testClient'
 
+const createServer = () => new Server(TEST_WS_SERVER_URL)
+const createFactory = () => vi.fn((url: string) => new MockSocket(url) as unknown as WebSocket)
+
 describe('useWebSocket', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('tracks connection state and last message', async () => {
-    const client = createTestClient()
-    const mockSocket = new MockWebSocket(TEST_BASE_URL)
+    const server = createServer()
+    let serverSocket: WebSocket | null = null
+    server.on('connection', (socket) => {
+      serverSocket = socket
+    })
+
+    const client = createTestClient(TEST_WS_BASE_URL)
+    const webSocketFactory = createFactory()
+
     const { result, unmount } = renderHook(() =>
       useWebSocket(client, {
-        webSocketFactory: () => mockSocket as unknown as WebSocket,
+        webSocketFactory,
       })
     )
 
-    mockSocket.open()
     await waitFor(() => {
       expect(result.current.connectionInfo.state).toBe(WS_STATE_CONNECTED)
     })
@@ -67,35 +81,47 @@ describe('useWebSocket', () => {
       },
     }
 
-    mockSocket.emitMessage(JSON.stringify(payload))
+    serverSocket?.send(JSON.stringify(payload))
 
     await waitFor(() => {
       expect(result.current.lastMessage?.type).toBe(WS_MESSAGE_TYPE_HEALTH_UPDATE)
     })
 
     unmount()
+    server.stop()
   })
 
   it('sends request health command through helper', async () => {
-    const client = createTestClient()
-    const mockSocket = new MockWebSocket(TEST_BASE_URL)
+    const server = createServer()
+    const received: Array<Record<string, unknown>> = []
+    server.on('connection', (socket) => {
+      socket.on('message', (data) => {
+        received.push(JSON.parse(data as string))
+      })
+    })
+
+    const client = createTestClient(TEST_WS_BASE_URL)
+    const webSocketFactory = createFactory()
     const { result, unmount } = renderHook(() =>
       useWebSocket(client, {
-        webSocketFactory: () => mockSocket as unknown as WebSocket,
+        webSocketFactory,
       })
     )
 
-    mockSocket.open()
     await waitFor(() => {
       expect(result.current.connected).toBe(true)
     })
 
     const requested = result.current.requestHealth()
     expect(requested).toBe(true)
-    const payload = JSON.parse(mockSocket.sentMessages[TEST_NUMBER_ZERO])
-    expect(payload.type).toBe(WS_MESSAGE_TYPE_REQUEST_HEALTH)
+
+    await waitFor(() => {
+      expect(received).toHaveLength(TEST_NUMBER_ONE)
+      expect(received[TEST_NUMBER_ZERO].type).toBe(WS_MESSAGE_TYPE_REQUEST_HEALTH)
+    })
 
     unmount()
+    server.stop()
   })
 })
 

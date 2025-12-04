@@ -3,32 +3,45 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { Server, WebSocket as MockSocket } from 'mock-socket'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useHealthWebSocket } from '@/hooks/useHealthWebSocket'
 import { WS_MESSAGE_TYPE_HEALTH_UPDATE } from '@/types/websocket'
 import {
-  TEST_BASE_URL,
   TEST_DATE_CREATED,
   TEST_NUMBER_HUNDRED,
   TEST_NUMBER_ONE,
   TEST_NUMBER_TEN,
   TEST_NUMBER_ZERO,
+  TEST_WS_BASE_URL,
+  TEST_WS_SERVER_URL,
 } from '../../constants'
-import { MockWebSocket } from '../../utils/mockWebSocket'
 import { createTestClient } from '../../utils/testClient'
 
+const createServer = () => new Server(TEST_WS_SERVER_URL)
+const createFactory = () => vi.fn((url: string) => new MockSocket(url) as unknown as WebSocket)
+
 describe('useHealthWebSocket', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('returns parsed health data when receiving health updates', async () => {
-    const client = createTestClient()
-    const mockSocket = new MockWebSocket(TEST_BASE_URL)
+    const server = createServer()
+    let serverSocket: WebSocket | null = null
+    server.on('connection', (socket) => {
+      serverSocket = socket
+    })
+
+    const client = createTestClient(TEST_WS_BASE_URL)
+    const webSocketFactory = createFactory()
     const { result, unmount } = renderHook(() =>
       useHealthWebSocket(client, {
-        webSocketFactory: () => mockSocket as unknown as WebSocket,
+        webSocketFactory,
       })
     )
 
-    mockSocket.open()
     await waitFor(() => {
       expect(result.current.connected).toBe(true)
     })
@@ -63,13 +76,14 @@ describe('useHealthWebSocket', () => {
       },
     }
 
-    mockSocket.emitMessage(JSON.stringify(payload))
+    serverSocket?.send(JSON.stringify(payload))
 
     await waitFor(() => {
       expect(result.current.healthData?.system.uptime).toBe(TEST_NUMBER_TEN)
     })
 
     unmount()
+    server.stop()
   })
 })
 
