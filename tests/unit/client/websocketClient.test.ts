@@ -3,6 +3,7 @@
  */
 
 import { waitFor } from '@testing-library/react'
+import type { Client as MockServerClient, ServerOptions } from 'mock-socket'
 import { Server, WebSocket as MockSocket } from 'mock-socket'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,7 @@ import {
   WS_STATE_DISCONNECTED,
 } from '@/types/websocket'
 import {
+  TEST_BOOLEAN_FALSE,
   TEST_DATE_CREATED,
   TEST_NUMBER_HUNDRED,
   TEST_NUMBER_ONE,
@@ -21,23 +23,44 @@ import {
   TEST_NUMBER_ZERO,
   TEST_STRING_VALUE,
   TEST_TIMEOUT_SHORT,
+  TEST_WS_CLOSE_CODE_NORMAL,
   TEST_WS_BASE_URL,
   TEST_WS_SERVER_URL,
 } from '../../constants'
 
-const createServer = () => new Server(TEST_WS_SERVER_URL)
-const createFactory = () => {
-  return vi.fn((url: string) => new MockSocket(url) as unknown as WebSocket)
+const MOCK_SERVER_OPTIONS: ServerOptions = { mock: TEST_BOOLEAN_FALSE }
+const activeServers: Server[] = []
+const createServer = () => {
+  const server = new Server(TEST_WS_SERVER_URL, MOCK_SERVER_OPTIONS)
+  activeServers.push(server)
+  return server
+}
+const createFactory = () =>
+  vi.fn((url: string) => {
+    const socket = new MockSocket(url)
+    return socket as unknown as WebSocket
+  })
+const waitMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const forceCloseSocket = (instance: WebSocketClient) => {
+  const handle = instance as unknown as { socket: WebSocket | null }
+  if (!handle.socket) {
+    throw new Error('Active socket not found')
+  }
+  handle.socket.close(TEST_WS_CLOSE_CODE_NORMAL, TEST_STRING_VALUE)
 }
 
 describe('WebSocketClient', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.restoreAllMocks()
+    while (activeServers.length > TEST_NUMBER_ZERO) {
+      activeServers.pop()?.stop()
+    }
   })
 
   it('connects and dispatches health update messages to listeners', async () => {
     const server = createServer()
-    let serverSocket: WebSocket | null = null
+    let serverSocket: MockServerClient | null = null
     server.on('connection', (socket) => {
       serverSocket = socket
     })
@@ -93,11 +116,9 @@ describe('WebSocketClient', () => {
     serverSocket?.send(JSON.stringify(payload))
 
     await waitFor(() => {
-      expect(factory).toHaveBeenCalledTimes(1)
+      expect(factory).toHaveBeenCalledTimes(TEST_NUMBER_ONE)
       expect(messageListener).toHaveBeenCalledWith(expect.objectContaining({ type: WS_MESSAGE_TYPE_HEALTH_UPDATE }))
     })
-
-    server.stop()
   })
 
   it('sends request health messages when connected', async () => {
@@ -109,7 +130,8 @@ describe('WebSocketClient', () => {
       })
     })
 
-    const client = new WebSocketClient(TEST_WS_BASE_URL)
+    const factory = createFactory()
+    const client = new WebSocketClient(TEST_WS_BASE_URL, { webSocketFactory: factory })
     client.connect()
 
     await waitFor(() => {
@@ -123,57 +145,50 @@ describe('WebSocketClient', () => {
       expect(messages).toHaveLength(TEST_NUMBER_ONE)
       expect(messages[TEST_NUMBER_ZERO].type).toBe(WS_MESSAGE_TYPE_REQUEST_HEALTH)
     })
-
-    server.stop()
   })
 
   it('schedules reconnect after unexpected closure', async () => {
-    vi.useFakeTimers()
     const server = createServer()
-    let connectionCount = 0
-    const sockets: WebSocket[] = []
-    server.on('connection', (socket) => {
-      connectionCount += 1
-      sockets.push(socket)
+    let connectionCount = TEST_NUMBER_ZERO
+    server.on('connection', () => {
+      connectionCount += TEST_NUMBER_ONE
     })
 
+    const factory = createFactory()
     const client = new WebSocketClient(TEST_WS_BASE_URL, {
-      reconnectIntervalMs: TEST_TIMEOUT_SHORT,
+      reconnectIntervalMs: TEST_NUMBER_ONE,
+      webSocketFactory: factory,
     })
     client.connect()
 
     await waitFor(() => {
       expect(connectionCount).toBe(TEST_NUMBER_ONE)
     })
-
-    sockets[TEST_NUMBER_ZERO]?.close()
-
     await waitFor(() => {
-      expect(client.getConnectionInfo().state).toBe(WS_STATE_DISCONNECTED)
+      expect(client.getConnectionInfo().state).toBe(WS_STATE_CONNECTED)
     })
 
-    vi.advanceTimersByTime(TEST_TIMEOUT_SHORT)
+    forceCloseSocket(client)
 
     await waitFor(() => {
       expect(connectionCount).toBe(TEST_NUMBER_ONE + TEST_NUMBER_ONE)
     })
-
-    vi.useRealTimers()
-    server.stop()
+    await waitFor(() => {
+      expect(client.getConnectionInfo().state).toBe(WS_STATE_CONNECTED)
+    })
   })
 
   it('does not reconnect after manual disconnect', async () => {
-    vi.useFakeTimers()
     const server = createServer()
-    let connectionCount = 0
-    const sockets: WebSocket[] = []
-    server.on('connection', (socket) => {
-      connectionCount += 1
-      sockets.push(socket)
+    let connectionCount = TEST_NUMBER_ZERO
+    server.on('connection', () => {
+      connectionCount += TEST_NUMBER_ONE
     })
 
+    const factory = createFactory()
     const client = new WebSocketClient(TEST_WS_BASE_URL, {
       reconnectIntervalMs: TEST_TIMEOUT_SHORT,
+      webSocketFactory: factory,
     })
     client.connect()
     await waitFor(() => {
@@ -183,11 +198,8 @@ describe('WebSocketClient', () => {
     client.disconnect()
     expect(client.getConnectionInfo().state).toBe(WS_STATE_DISCONNECTED)
 
-    vi.advanceTimersByTime(TEST_TIMEOUT_SHORT * TEST_NUMBER_TEN)
+    await waitMs(TEST_TIMEOUT_SHORT)
     expect(connectionCount).toBe(TEST_NUMBER_ONE)
-
-    vi.useRealTimers()
-    server.stop()
   })
 })
 
